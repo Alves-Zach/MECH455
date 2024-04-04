@@ -84,10 +84,10 @@ def createChancesVisual(ax, enumeration):
         
         circle = patches.Circle((source[0], source[1]),
                                 (i / enumeration),
-                                alpha = alpha,
-                                color = 'white',
+                                alpha=alpha,
+                                color='white',
                                 fill=False,
-                                zorder = 1 + i,
+                                zorder=-1,
                                 label='_nolegend_')
         ax.add_patch(circle)
 
@@ -99,36 +99,44 @@ def addPoints(ax, posPoints, negPoints, enumeration):
     # Error checking on adding scatters to the plot
     if(posPoints.size > 2):
         ax.scatter(posPoints[:, 0], posPoints[:, 1],
-                   color=colors[0], zorder=enumeration + 2,
+                   color=colors[0], zorder=1,
                    label="Positive", s=size)
     if(posPoints.size == 2):
         ax.scatter(posPoints[0], posPoints[1],
-                   color=colors[0], zorder=enumeration + 2,
+                   color=colors[0], zorder=1,
                    label="Positive", s=size)
 
     if(negPoints.size > 2):
         ax.scatter(negPoints[:, 0], negPoints[:, 1],
-                   color=colors[1], zorder=enumeration + 3,
+                   color=colors[1], zorder=1,
                    label="Negative", s=size)
     if(negPoints.size == 2):
         ax.scatter(negPoints[0], negPoints[1],
-                   color=colors[1], zorder=enumeration + 3,
+                   color=colors[1], zorder=1,
                    label="Negative", s=size)
 
+# Create the likelyhood function
+def createLikelyhoodFunction(ax, posPoints, negPoints):
+    enumerationFactor = 100
+    # Create the likelyhood function
+    for i in range(0, enumerationFactor + 1):
+        for j in range(0, enumerationFactor + 1):
+            
+
 # Main funciton
-def prob1():
+def main():
     # Creating the random points and sorting them based on the sensor readings
     numPoints = 100
     posPoints, negPoints = createPoints(numPoints)
     
     # Create the plot
     fig, ax = plt.subplots()
-    fig.suptitle("Problem 1")
-    fig.canvas.manager.set_window_title("Problem 1")
+    fig.suptitle("")
+    fig.canvas.manager.set_window_title("Homework 1")
 
     # Create the patch to be the background
     rect = patches.Rectangle((0, 0), 1, 1, facecolor='black',
-                             alpha=0.9, zorder=0, label='_nolegend_')
+                             alpha=0.9, zorder=-1, label='_nolegend_')
     ax.add_patch(rect)
 
     # Creating circle patches to show chances
@@ -138,19 +146,19 @@ def prob1():
     # Adding the points to the plot
     addPoints(ax, posPoints, negPoints, enumeration)
 
+    # Creating the likelyhood function based on the points
+    createLikelyhoodFunction(ax, posPoints, negPoints)
+
     # Adding the source to the plot
-    ax.scatter(source[0], source[1], color='royalblue', zorder=enumeration + 5,
+    ax.scatter(source[0], source[1], color='royalblue', zorder=2,
                label="Source", s=75, marker='X')
 
     # Plot the graph
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     ax.set_aspect('equal')
-    plt.legend(loc='upper right').set_zorder(enumeration + 4)
+    plt.legend(loc='upper right').set_zorder(10)
     plt.show()
-
-def main():
-    prob1()
 
 if __name__ == "__main__":
     main()
