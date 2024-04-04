@@ -1,6 +1,8 @@
+import enum
 import numpy as np
 import math
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 import random
 
 ############### Creating arena ###############
@@ -9,22 +11,25 @@ xlim = np.array([0, 1])
 ylim = np.array([0, 1])
 
 # Source location
-source = np.array([0.25, 0.25])
+source = np.array([0.3, 0.4])
 
 # Colors for positive and negative sensor readings
 colors = ['g', 'r']
 
-# Give a reading from the sensor
-def bernoulli(point):
+# Find the chance of a positive reading
+def bernoulliChances(point):
     # Calculate the chances of reading a positive value
     chances = math.exp(-100 * (np.linalg.norm(point - source) - 0.2)**2)
 
-    # print(chances)
+    return chances
+
+# Give a reading from the sensor
+def bernoulli(point):
+    # Calculate the chances of reading a positive value
+    chances = bernoulliChances(point)
 
     # Roll those chances
     randNum = random.random()
-
-    # print(randNum)
 
     if(randNum <= chances):
         return 1
@@ -32,9 +37,11 @@ def bernoulli(point):
         return 0
 
 # Problem 1
-def prob1():
+
+# Helper functions
+def createPoints(numPoints):
     # Create 100 random points
-    points = np.random.rand(10, 2)
+    points = np.random.rand(numPoints, 2)
 
     # Creating the list of positive points and negative points
     posPoints = np.empty((0, 2))
@@ -42,8 +49,6 @@ def prob1():
 
     # Create lists of points that result in positive or negative reading
     for i in points:
-        print("Current point", end=": ")
-        print(i)
         if (bernoulli(i) == 1):
             # Checking if the arrays are empty
             if (posPoints.size == 0):
@@ -51,8 +56,6 @@ def prob1():
             else:
                 posPoints = np.vstack([posPoints, i])
                 
-            print(posPoints)
-            print("Added to positive\n")
         else:
             # Checking if the arrays are empty
             if (negPoints.size == 0):
@@ -60,9 +63,6 @@ def prob1():
             else:
                 negPoints = np.vstack([negPoints, i])
                 
-            print(negPoints)
-            print("Added to negative\n")
-
     print("Negative points", end=" ")
     print(negPoints.shape, end=":\n")
     print(negPoints)
@@ -72,16 +72,81 @@ def prob1():
     print(posPoints.shape, end=":\n")
     print(posPoints)
 
+    return posPoints, negPoints
+
+# Create the circle patches
+def createChancesVisual(ax, enumeration):
+    # The loop to test the circle patches
+    for i in range(0, enumeration):
+        # Create the patch, and change the alpha based on the chances
+        alpha = bernoulliChances(np.array([source[0] + (i / enumeration),
+                                           source[1]]))
+        
+        circle = patches.Circle((source[0], source[1]),
+                                (i / enumeration),
+                                alpha = alpha,
+                                color = 'white',
+                                fill=False,
+                                zorder = 1 + i,
+                                label='_nolegend_')
+        ax.add_patch(circle)
+
+# Add the points to the plot
+def addPoints(ax, posPoints, negPoints, enumeration):
+    # Default params for the points
+    size = 10
+
+    # Error checking on adding scatters to the plot
+    if(posPoints.size > 2):
+        ax.scatter(posPoints[:, 0], posPoints[:, 1],
+                   color=colors[0], zorder=enumeration + 2,
+                   label="Positive", s=size)
+    if(posPoints.size == 2):
+        ax.scatter(posPoints[0], posPoints[1],
+                   color=colors[0], zorder=enumeration + 2,
+                   label="Positive", s=size)
+
+    if(negPoints.size > 2):
+        ax.scatter(negPoints[:, 0], negPoints[:, 1],
+                   color=colors[1], zorder=enumeration + 3,
+                   label="Negative", s=size)
+    if(negPoints.size == 2):
+        ax.scatter(negPoints[0], negPoints[1],
+                   color=colors[1], zorder=enumeration + 3,
+                   label="Negative", s=size)
+
+# Main funciton
+def prob1():
+    # Creating the random points and sorting them based on the sensor readings
+    numPoints = 100
+    posPoints, negPoints = createPoints(numPoints)
+    
     # Create the plot
     fig, ax = plt.subplots()
+    fig.suptitle("Problem 1")
+    fig.canvas.manager.set_window_title("Problem 1")
 
-    # Checking if either set of plots is empty
-    if(posPoints.size != 0):
-        ax.scatter(posPoints[:, 0], posPoints[:, 1], color=colors[0])
+    # Create the patch to be the background
+    rect = patches.Rectangle((0, 0), 1, 1, facecolor='black',
+                             alpha=0.9, zorder=0, label='_nolegend_')
+    ax.add_patch(rect)
 
-    if(negPoints.size != 0):
-        ax.scatter(negPoints[:, 0], negPoints[:, 1], color=colors[1])
+    # Creating circle patches to show chances
+    enumeration = 500
+    createChancesVisual(ax, enumeration)
 
+    # Adding the points to the plot
+    addPoints(ax, posPoints, negPoints, enumeration)
+
+    # Adding the source to the plot
+    ax.scatter(source[0], source[1], color='royalblue', zorder=enumeration + 5,
+               label="Source", s=75, marker='X')
+
+    # Plot the graph
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.set_aspect('equal')
+    plt.legend(loc='upper right').set_zorder(enumeration + 4)
     plt.show()
 
 def main():
