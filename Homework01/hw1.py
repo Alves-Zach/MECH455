@@ -1,11 +1,8 @@
-from distro import like
 import numpy as np
 import math
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import random
-
-from sympy import false
 
 ############### Creating arena ###############
 # Default source location
@@ -13,15 +10,6 @@ source = np.array([0.3, 0.4])
 
 # Colors for positive and negative sensor readings
 colors = ['g', 'r']
-
-# Flags to see if scatters have been added to the legend
-# With default label names
-posLabelFlag  = False
-posLabel = "Positive"
-negLabelFlag  = False
-negLabel = "Negative"
-sourceLabelFlag = False
-sourceLabel = "Source"
 
 ############### Helper functions
 # Find the chance of a positive reading
@@ -109,23 +97,26 @@ def createUniformPoints(enumerationFactor):
 # Create a single point
 def createSinglePoint(posPoints, negPoints, sensorLoc):
     # Create a random point
-    point = sensorLoc
+    newPoint = sensorLoc
+    positive = False
     
-    if (bernoulli(point) == 1):
+    if (bernoulli(newPoint) == 1):
+        positive = True
         # Checking if the arrays are empty
         if (posPoints.size == 0):
-            posPoints = np.array([point[0], point[1]])
+            posPoints = np.array([newPoint[0], newPoint[1]])
         else:
-            posPoints = np.vstack([posPoints, point])
+            posPoints = np.vstack([posPoints, newPoint])
 
     else:
+        positive = False
         # Checking if the arrays are empty
         if (negPoints.size == 0):
-            negPoints = np.array([point[0], point[1]])
+            negPoints = np.array([newPoint[0], newPoint[1]])
         else:
-            negPoints = np.vstack([negPoints, point])
+            negPoints = np.vstack([negPoints, newPoint])
 
-    return posPoints, negPoints
+    return posPoints, negPoints, newPoint, positive
 
 # Create points from a set point
 def createPointsFromSetSpot(numPoints, point):
@@ -199,8 +190,6 @@ def createLikelyhoodFunction(ax, posPoints, negPoints, enumerationFactor=100):
 
     # Calculating the likelyhood function
     curSource = np.array([0.0, 0.0])
-    maxLikelyhood = 0
-    patchesArray = np.empty((0, 1))
     for i in range(0, enumerationFactor):
         # Storing the x value
         curSource[0] = i / enumerationFactor
@@ -216,24 +205,62 @@ def createLikelyhoodFunction(ax, posPoints, negPoints, enumerationFactor=100):
             for k in negPoints:
                 likelyhoodGrid[i][j] *= 1 - bernoulliChances(k, curSource)
 
-            # Check if the likelyhood is the max
-            if (likelyhoodGrid[i][j] > maxLikelyhood):
-                maxLikelyhood = likelyhoodGrid[i][j]
-
-            # Create the patch
-            patchesArray = np.append(patchesArray, 
-                                     patches.Rectangle((i / enumerationFactor, j / enumerationFactor),
-                                     1 / enumerationFactor, 1 / enumerationFactor,
-                                     alpha=likelyhoodGrid[i][j], color='green',
-                                     fill=True, label='_nolegend_',
-                                     zorder=0))
-
-    # Normalize the likelyhood function and add it to the plot
-    for i in patchesArray:
-        i.set_alpha(i.get_alpha() / maxLikelyhood)
-        ax.add_patch(i)
+    # Plotting the likelyhood function
+    likelyhoodPlot = ax.imshow(np.transpose(likelyhoodGrid), cmap='binary_r', interpolation='nearest',
+                               extent=[0, 1, 0, 1], zorder=0, origin='lower')
         
-    return likelyhoodGrid
+    return likelyhoodGrid, likelyhoodPlot
+
+# Get integral term
+def getIntegralTerm(probabilityGrid, newPoint, positive):
+    integralTerm = 0
+    for i in range(0, probabilityGrid.shape[0]):
+        for j in range(0, probabilityGrid.shape[1]):
+            if (positive):
+                integralTerm += bernoulliChances(newPoint, np.array([i / probabilityGrid.shape[0],
+                                                                     j / probabilityGrid.shape[1]])) * probabilityGrid[i][j]
+            else:
+                integralTerm += (1 - bernoulliChances(newPoint, np.array([i / probabilityGrid.shape[0],
+                                                                          j / probabilityGrid.shape[1]]))) * probabilityGrid[i][j]
+
+    return integralTerm
+
+# Create the probability function
+def updateProbabilityGrid(ax, probabilityGrid, newPoint, positive):
+    # Getting enumerationFactor
+    enumerationFactor = probabilityGrid.shape[0]
+
+    # Getting the integral term
+    integralTerm = getIntegralTerm(probabilityGrid, newPoint, positive)
+    
+    # Calculating the probability function
+    curCell = np.array([0.0, 0.0])
+    for i in range(0, enumerationFactor):
+        # Storing the x value
+        curCell[0] = i / enumerationFactor
+
+        for j in range(0, enumerationFactor):
+            # Storing the y value
+            curCell[1] = j / enumerationFactor
+            
+            if (positive):
+                # Update the probability grid
+                probabilityGrid[i][j]  = (bernoulliChances(newPoint, curCell) * probabilityGrid[i][j]) / integralTerm
+            else:
+                # Update the probability grid
+                probabilityGrid[i][j]  = ((1 - bernoulliChances(newPoint, curCell)) * probabilityGrid[i][j]) / integralTerm
+
+    probabilityPlot = ax.imshow(np.transpose(probabilityGrid), cmap='binary_r', interpolation='nearest',
+                                extent=[0, 1, 0, 1], zorder=0, origin='lower')
+    probabilityPlot.norm.autoscale([0, np.max(probabilityGrid)])
+
+    return probabilityGrid, probabilityPlot
+
+# Create a blank probability funciton
+def createBlankProbabilityFunction(enumerationFactor):
+    probabilityGrid = np.ones((enumerationFactor, enumerationFactor))  / (enumerationFactor**2)
+
+    return probabilityGrid
 
 # Create the background for the plot
 def createBackground(ax):
@@ -251,7 +278,7 @@ def addSource(ax):
 # Add source guess to the plot
 def addSourceGuess(ax, sourceGuess):
     # Add the source to the plot
-    ax.scatter(sourceGuess[0], sourceGuess[1], color='yellow', zorder=2,
+    ax.scatter(sourceGuess[0], sourceGuess[1], color='orange', zorder=2,
                label='_nolegend_', s=75, marker='X')
 
 # Find the location of the highest likelyhood
@@ -271,6 +298,10 @@ def findMostLikely(likelyhoodGrid):
 def createLegend(ax, plotSourceGuess=False):
     # Source label
     ax.scatter([], [], color='royalblue', zorder=2, marker='X', label='Source', s=75)
+
+    # Source guess plot
+    if (plotSourceGuess):
+        ax.scatter([], [], color='orange', zorder=2, marker='X', label='Source Guess', s=75)
     
     # Positive label
     ax.scatter([], [], color=colors[0], zorder=1, label='Positive', s=10)
@@ -278,19 +309,30 @@ def createLegend(ax, plotSourceGuess=False):
     # Negative label
     ax.scatter([], [], color=colors[1], zorder=1, label='Negative', s=10)
 
-    # Source guess plot
-    if (plotSourceGuess):
-        ax.scatter([], [], color='yellow', zorder=2, marker='X', label='Source Guess', s=75)
+# Create grid sample locations
+def createGridSampleLocations(x, y):
+    sensLocations = np.empty((0, 2))
+    for i in range(0, x + 1):
+        for j in range(0, y + 1):
+            if (i != 0 and j != 0):
+                sensLocations = np.vstack([sensLocations,
+                                           np.array([i / (x + 1),
+                                                     j / (y + 1)])])
+                
+    return sensLocations
 
 # Main funciton
 def prob1():
+    # Telling the user which problem is running
+    print("Problem 1 and 2")
+
     # Creating the random points and sorting them based on the sensor readings
     numPoints = 100
     posPoints, negPoints, points = createPoints(numPoints)
     
     # Create the plot
     fig, ax = plt.subplots()
-    fig.suptitle("Problem 1 and 2")
+    fig.suptitle("Problem 2")
     fig.canvas.manager.set_window_title("Homework 1")
 
     # Creating background for the plot
@@ -303,19 +345,25 @@ def prob1():
     addPointsToPlot(ax, posPoints, negPoints)
 
     # Creating the likelyhood function based on the points
-    createLikelyhoodFunction(ax, posPoints, negPoints, 100)
+    likelyhoodGrid, likelyhoodPlot = createLikelyhoodFunction(ax, posPoints, negPoints, 100)
 
     # Add the source to the plot
     addSource(ax)
+    
+    # Create legend
+    createLegend(ax)
 
     # Plot the graph
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     ax.set_aspect('equal')
     plt.legend(loc='upper right').set_zorder(10)
+    plt.colorbar(likelyhoodPlot, ax=ax, label='Likelyhood')
     plt.show()
 
 def prob3():
+    # Telling the user what problem is running
+    print("Problem 3")
     # Creating 100 points at the same location
     numPoints = 100
 
@@ -335,9 +383,6 @@ def prob3():
         # Creating background for the plot
         createBackground(ax[i])
 
-        # Creating circle patches to show chances
-        createChancesVisual(ax[i], 400)
-
         # Adding a source to the plot
         addSource(ax[i])
 
@@ -345,20 +390,27 @@ def prob3():
         addPointsToPlot(ax[i], posPoints, negPoints)
 
         # Creating the likelyhood function based on the points
-        createLikelyhoodFunction(ax[i], posPoints, negPoints, 50)
+        likelyhoodGrid, likelihoodPlot = createLikelyhoodFunction(ax[i], posPoints, negPoints, 50)
 
         # Plot the graph
         ax[i].set_xlim(0, 1)
         ax[i].set_ylim(0, 1)
         ax[i].set_aspect('equal')
-        plt.legend(loc='upper right').set_zorder(10)
 
         # Tell user done with this plot
         print("Plot ", i, " done")
+    
+    # Adding legend
+    createLegend(ax[0])
+    fig.legend(loc='upper right').set_zorder(10)
+    fig.colorbar(likelihoodPlot, ax=ax, label='Likelyhood')
 
     plt.show()
 
 def prob4():
+    # Telling the user which problem is running
+    print("Problem 4")
+
     # Creating 10 points at the same location
     numPoints = 10
 
@@ -374,6 +426,9 @@ def prob4():
     # Creating empty positive and negative points
     posPoints = np.empty((0, 2))
     negPoints = np.empty((0, 2))
+    
+    # Probability grid
+    probabilityGrid = createBlankProbabilityFunction(100)
 
     # For loop to create the plots
     curPointCount = 0
@@ -382,26 +437,26 @@ def prob4():
             # Creating background for the plot
             createBackground(ax[i][j])
 
-            # Creating circle patches to show chances
-            createChancesVisual(ax[i][j], 300)
-
             # Adding a source to the plot
             addSource(ax[i][j])
-
-            # Adding a single point to the plot
-            posPoints, negPoints = createSinglePoint(posPoints, negPoints, sensor)
-
+            
             # Adding the points to the plot
             addPointsToPlot(ax[i][j], posPoints, negPoints)
 
-            # Creating the likelyhood function based on the points
-            likelyhoodGrid = createLikelyhoodFunction(ax[i][j], posPoints, negPoints, 50)
+            # Adding a single point to the plot
+            posPoints, negPoints, newPoint, positive = createSinglePoint(posPoints, negPoints, sensor)
+
+            # Add new point to the plot
+            ax[i][j].scatter(newPoint[0], newPoint[1], color=colors[positive], zorder=1, s=10)
 
             # Find the most likely point
-            sourceGuess = findMostLikely(likelyhoodGrid)            
+            sourceGuess = findMostLikely(probabilityGrid)            
 
             # Create the point of the most likely source point
             addSourceGuess(ax[i][j], sourceGuess)
+
+            # Creating the likelyhood function based on the points
+            probabilityGrid, probabilityPlot = updateProbabilityGrid(ax[i][j], probabilityGrid, newPoint, positive)
 
             # Plot the graph
             ax[i][j].set_xlim(0, 1)
@@ -413,9 +468,9 @@ def prob4():
             curPointCount += 1
             print("Plot ", curPointCount, " done")
 
-    # handles, labels = ax[0, 0].get_legend_handles_labels()
     createLegend(ax[0][0], True)
     fig.legend(loc='upper right').set_zorder(10)
+    fig.colorbar(probabilityPlot, ax=ax, label='Probability')
     plt.show()
 
 def prob5():
@@ -430,21 +485,12 @@ def prob5():
     # Creating empty positive and negative points
     posPoints = np.empty((0, 2))
     negPoints = np.empty((0, 2))
-
-    # Points to test
-    sensorLocations = np.array([[0.25, 0.25], [0.25, 0.5], [0.25, 0.75],
-                               [0.5, 0.25], [0.5, 0.5], [0.5, 0.75],
-                               [0.75, 0.25], [0.75, 0.5], [0.75, 0.75]])
     
-    # Creating the sensor locations
-    sensorEnumeration = 3
-    sensLocations = np.empty((0, 2))
-    for i in range(0, sensorEnumeration + 1):
-        for j in range(0, sensorEnumeration + 1):
-            if (i != 0 and j != 0):
-                sensLocations = np.vstack([sensLocations,
-                                           np.array([i / (sensorEnumeration + 1),
-                                                     j / (sensorEnumeration + 1)])])
+    # Probability grid
+    probabilityGrid = createBlankProbabilityFunction(100)
+    
+    # Creating the sensor locations                
+    sensLocations = createGridSampleLocations(3, 3)
 
     # For loop to create the plots
     curPointCount = 0
@@ -453,23 +499,23 @@ def prob5():
             # Creating background for the plot
             createBackground(ax[i][j])
 
-            # Creating circle patches to show chances
-            createChancesVisual(ax[i][j], 300)
-
             # Adding a source to the plot
             addSource(ax[i][j])
-
-            # Adding a single point to the plot
-            posPoints, negPoints = createSinglePoint(posPoints, negPoints, sensorLocations[curPointCount])
 
             # Adding the points to the plot
             addPointsToPlot(ax[i][j], posPoints, negPoints)
 
+            # Adding a single point to the plot
+            posPoints, negPoints, newPoint, positive = createSinglePoint(posPoints, negPoints, sensLocations[curPointCount])
+
+            # Add new point to the plot
+            ax[i][j].scatter(newPoint[0], newPoint[1], color=colors[positive], zorder=1, s=10)
+
             # Creating the likelyhood function based on the points
-            likelyhoodGrid = createLikelyhoodFunction(ax[i][j], posPoints, negPoints, 50)
+            probabilityGrid, probabilityPlot = updateProbabilityGrid(ax[i][j], probabilityGrid, newPoint, positive)
 
             # Plot the most likely point
-            sourceGuess = findMostLikely(likelyhoodGrid)
+            sourceGuess = findMostLikely(probabilityGrid)
             addSourceGuess(ax[i][j], sourceGuess)
 
             # Plot the graph
@@ -485,9 +531,12 @@ def prob5():
     # handles, labels = ax[0, 0].get_legend_handles_labels()
     createLegend(ax[0][0], True)
     fig.legend(loc='upper right').set_zorder(10)
+    fig.colorbar(probabilityPlot, ax=ax, label='Probability')
     plt.show()
 
 def main():
+    # prob1()
+    # prob3()
     # prob4()
     prob5()
 
