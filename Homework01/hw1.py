@@ -1,10 +1,11 @@
-from cProfile import label
-from venv import create
+from distro import like
 import numpy as np
 import math
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import random
+
+from sympy import false
 
 ############### Creating arena ###############
 # Default source location
@@ -231,6 +232,8 @@ def createLikelyhoodFunction(ax, posPoints, negPoints, enumerationFactor=100):
     for i in patchesArray:
         i.set_alpha(i.get_alpha() / maxLikelyhood)
         ax.add_patch(i)
+        
+    return likelyhoodGrid
 
 # Create the background for the plot
 def createBackground(ax):
@@ -244,9 +247,28 @@ def addSource(ax):
     # Add the source to the plot
     ax.scatter(source[0], source[1], color='royalblue', zorder=2,
                label='_nolegend_', s=75, marker='X')
+
+# Add source guess to the plot
+def addSourceGuess(ax, sourceGuess):
+    # Add the source to the plot
+    ax.scatter(sourceGuess[0], sourceGuess[1], color='yellow', zorder=2,
+               label='_nolegend_', s=75, marker='X')
+
+# Find the location of the highest likelyhood
+def findMostLikely(likelyhoodGrid):
+    maxLikelyhood = 0
+    sourceGuess = np.array([0, 0])
+    for k in range(0, likelyhoodGrid.shape[0]):
+        for l in range(0, likelyhoodGrid.shape[1]):
+            if (likelyhoodGrid[k][l] > maxLikelyhood):
+                maxLikelyhood = likelyhoodGrid[k][l]
+                sourceGuess = np.array([k / likelyhoodGrid.shape[0],
+                                        l / likelyhoodGrid.shape[1]])
     
+    return sourceGuess
+
 # Create legend
-def createLegend(ax):
+def createLegend(ax, plotSourceGuess=False):
     # Source label
     ax.scatter([], [], color='royalblue', zorder=2, marker='X', label='Source', s=75)
     
@@ -255,6 +277,10 @@ def createLegend(ax):
     
     # Negative label
     ax.scatter([], [], color=colors[1], zorder=1, label='Negative', s=10)
+
+    # Source guess plot
+    if (plotSourceGuess):
+        ax.scatter([], [], color='yellow', zorder=2, marker='X', label='Source Guess', s=75)
 
 # Main funciton
 def prob1():
@@ -369,19 +395,26 @@ def prob4():
             addPointsToPlot(ax[i][j], posPoints, negPoints)
 
             # Creating the likelyhood function based on the points
-            createLikelyhoodFunction(ax[i][j], posPoints, negPoints, 50)
+            likelyhoodGrid = createLikelyhoodFunction(ax[i][j], posPoints, negPoints, 50)
+
+            # Find the most likely point
+            sourceGuess = findMostLikely(likelyhoodGrid)            
+
+            # Create the point of the most likely source point
+            addSourceGuess(ax[i][j], sourceGuess)
 
             # Plot the graph
             ax[i][j].set_xlim(0, 1)
             ax[i][j].set_ylim(0, 1)
             ax[i][j].set_aspect('equal')
+            ax[i][j].set_title("Point " + str(curPointCount + 1))
 
             # Tell user done with this plot
             curPointCount += 1
             print("Plot ", curPointCount, " done")
 
     # handles, labels = ax[0, 0].get_legend_handles_labels()
-    createLegend(ax[0][0])
+    createLegend(ax[0][0], True)
     fig.legend(loc='upper right').set_zorder(10)
     plt.show()
 
@@ -391,7 +424,7 @@ def prob5():
 
     # Create the plot
     fig, ax = plt.subplots(3, 3)
-    fig.suptitle("Problem 4")
+    fig.suptitle("Problem 5")
     fig.canvas.manager.set_window_title("Homework 1")
 
     # Creating empty positive and negative points
@@ -402,6 +435,16 @@ def prob5():
     sensorLocations = np.array([[0.25, 0.25], [0.25, 0.5], [0.25, 0.75],
                                [0.5, 0.25], [0.5, 0.5], [0.5, 0.75],
                                [0.75, 0.25], [0.75, 0.5], [0.75, 0.75]])
+    
+    # Creating the sensor locations
+    sensorEnumeration = 3
+    sensLocations = np.empty((0, 2))
+    for i in range(0, sensorEnumeration + 1):
+        for j in range(0, sensorEnumeration + 1):
+            if (i != 0 and j != 0):
+                sensLocations = np.vstack([sensLocations,
+                                           np.array([i / (sensorEnumeration + 1),
+                                                     j / (sensorEnumeration + 1)])])
 
     # For loop to create the plots
     curPointCount = 0
@@ -423,23 +466,29 @@ def prob5():
             addPointsToPlot(ax[i][j], posPoints, negPoints)
 
             # Creating the likelyhood function based on the points
-            createLikelyhoodFunction(ax[i][j], posPoints, negPoints, 50)
+            likelyhoodGrid = createLikelyhoodFunction(ax[i][j], posPoints, negPoints, 50)
+
+            # Plot the most likely point
+            sourceGuess = findMostLikely(likelyhoodGrid)
+            addSourceGuess(ax[i][j], sourceGuess)
 
             # Plot the graph
             ax[i][j].set_xlim(0, 1)
             ax[i][j].set_ylim(0, 1)
             ax[i][j].set_aspect('equal')
+            ax[i][j].set_title("Point " + str(curPointCount + 1))
 
             # Tell user done with this plot
             curPointCount += 1
             print("Plot ", curPointCount, " done")
 
     # handles, labels = ax[0, 0].get_legend_handles_labels()
-    createLegend(ax[0][0])
+    createLegend(ax[0][0], True)
     fig.legend(loc='upper right').set_zorder(10)
     plt.show()
 
 def main():
+    # prob4()
     prob5()
 
 if __name__ == "__main__":
