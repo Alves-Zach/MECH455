@@ -328,7 +328,7 @@ def prob1():
 
     # Creating the random points and sorting them based on the sensor readings
     numPoints = 100
-    posPoints, negPoints, points = createPoints(numPoints)
+    posPoints, negPoints = createPoints(numPoints)[0:2]
     
     # Create the plot
     fig, ax = plt.subplots()
@@ -345,7 +345,7 @@ def prob1():
     addPointsToPlot(ax, posPoints, negPoints)
 
     # Creating the likelyhood function based on the points
-    likelyhoodGrid, likelyhoodPlot = createLikelyhoodFunction(ax, posPoints, negPoints, 100)
+    likelyhoodPlot = createLikelyhoodFunction(ax, posPoints, negPoints, 100)[1]
 
     # Add the source to the plot
     addSource(ax)
@@ -390,7 +390,7 @@ def prob3():
         addPointsToPlot(ax[i], posPoints, negPoints)
 
         # Creating the likelyhood function based on the points
-        likelyhoodGrid, likelihoodPlot = createLikelyhoodFunction(ax[i], posPoints, negPoints, 50)
+        likelihoodPlot = createLikelyhoodFunction(ax[i], posPoints, negPoints, 50)[1]
 
         # Plot the graph
         ax[i].set_xlim(0, 1)
