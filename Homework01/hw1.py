@@ -11,7 +11,7 @@ source = np.array([0.3, 0.4])
 # Colors for positive and negative sensor readings
 colors = ['g', 'r']
 
-############### Helper functions
+############### Helper functions ###############
 # Find the chance of a positive reading
 def bernoulliChances(point, sourceIn=source):
     # Calculate the chances of reading a positive value
