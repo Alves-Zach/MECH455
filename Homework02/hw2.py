@@ -1,8 +1,10 @@
+from venv import create
 from matplotlib import markers
 import numpy as np
 import matplotlib.pyplot as plt
 import jax.numpy as jnp
 from torch import randint
+from scipy.stats import entropy
 
 # Setting the print length of numpy
 np.set_printoptions(edgeitems=30, linewidth=100000)
@@ -108,6 +110,15 @@ def bernoulliChancesArray(point):
 
     return array
 
+# Generate a negative bernoulli array
+def negativeBernoulliArray(point):
+    array = np.zeros((25, 25))
+    for i in range(0, 25):
+        for j in range(0, 25):
+            array[i][j] = 1 - bernoulliChances(point, np.array([i, j]))
+
+    return array
+
 ###### Actions the robots can take ######
 # Move the robot to the left
 def moveLeft():
@@ -156,23 +167,32 @@ def getIntegralTerm(reading):
 
 # Update the probability grid based on a reading
 def updateBeliefGrid(reading):
-    # Getting the enumeration factor of the grid
-    enumFactor = chancesGrid.shape[0]
-
     # Getting the current integral term
     integralTerm = getIntegralTerm(reading)
 
     # Update the belief grid
     global beliefGrid, robot
-
-    # Creating an array of bernoulli chances for jnp
-    bernoulliChancesArray(robot)
     
     # Updating the belief grid based on the reading
     if (reading == 1):
         beliefGrid = jnp.divide(jnp.multiply(beliefGrid, bernoulliChancesArray(robot)), integralTerm)
     else:
         beliefGrid = jnp.divide(jnp.multiply(beliefGrid, 1 - bernoulliChancesArray(robot)), integralTerm)
+
+# Create a theorectical belief grid based on a reading
+def createTheoreticalBeliefGrid(reading, point):
+    # Getting the integral term
+    integralTerm = getIntegralTerm(reading)
+
+    # Creating a theoretical belief grid
+    global beliefGrid
+    theoreticalGrid = beliefGrid
+    if (reading == 1):
+        theoreticalGrid = jnp.divide(jnp.multiply(beliefGrid, bernoulliChancesArray(point)), integralTerm)
+    else:
+        theoreticalGrid = jnp.divide(jnp.multiply(beliefGrid, 1 - bernoulliChancesArray(point)), integralTerm)
+
+    return theoreticalGrid
 
 # Perform a number of timesteps
 def performTimesteps(numTimesteps):
@@ -200,7 +220,7 @@ def plotBeliefGrid(axIndexes):
     
     # Return the plot
     return curAx.imshow(np.transpose(beliefGrid), cmap='Greens', interpolation='nearest',
-                        extent=[-0.5, 24.5, -0.5, 24.5], zorder=1, origin='lower', alpha=0.5)
+                        extent=[-0.5, 24.5, -0.5, 24.5], zorder=1, origin='lower', alpha=0.65)
 
 # Display the robot on the grid
 def displayRobot(axIndexes):
@@ -240,18 +260,88 @@ def myExploreAlgorithm():
 
 # Infotaxis algorithm
 def infoTaxisAlgorithm():
+    # Getting global variables
     global beliefGrid, robot
+
+    # Setting the J values to inf
+    upJ = np.inf
+    downJ = np.inf
+    leftJ = np.inf
+    rightJ = np.inf
+    stayStillJ = np.inf
+
     # Calculations for each direction
 
+    # Only calculate if the robot can move up
     if (robot[1] < 24):
         # Up
-        upPoint = np.array([robot[0], robot[1]+1])
-        upBelief = beliefGrid * bernoulliChances(robot, upPoint) 
-        upgt = jnp.sum(upBelief) - jnp.sum(np.log(upBelief))
-        uppzx = jnp.sum(bernoulliChances(robot, upPoint) * beliefGrid)
-        upJ = upgt * uppzx
-
+        upJ = calculateJValue(np.array([robot[0], robot[1]+1]))
     print("upJ: ", upJ)
+
+    # Only calculate if the robot can move down
+    if (robot[1] > 0):
+        # Down
+        downJ = calculateJValue(np.array([robot[0], robot[1]-1]))
+    print("downJ: ", downJ)
+
+    # Only calculate if the robot can move left
+    if (robot[0] > 0):
+        # Left
+        leftJ = calculateJValue(np.array([robot[0]-1, robot[1]]))
+    print("leftJ: ", leftJ)
+
+    # Only calculate if the robot can move right
+    if (robot[0] < 24):
+        # Right
+        rightJ = calculateJValue(np.array([robot[0]+1, robot[1]]))
+    print("rightJ: ", rightJ)
+
+    # Find J for staying still
+    stayStillJ = calculateJValue(robot) + 1.0
+    print("stayStillJ: ", stayStillJ)
+
+    # Get the min value of the J values
+    minJ = min(upJ, downJ, leftJ, rightJ, stayStillJ)
+    print("minJ: ", minJ)
+
+    # Move the robot based on the max value
+    if (minJ == upJ):
+        print("Moving up")
+        moveUp()
+    elif (minJ == downJ):
+        print("Moving down")
+        moveDown()
+    elif (minJ == leftJ):
+        print("Moving left")
+        moveLeft()
+    elif (minJ == rightJ):
+        print("Moving right")
+        moveRight()
+    else:
+        print("Staying still")
+        stayStill()
+
+    print()
+
+# Calculate the J(x) value for a given point
+def calculateJValue(point):
+    # Get the current entropy of the belief grid
+    currentEntropy = entropy(beliefGrid.ravel())
+
+    # Compute the entropy of the belief grid at the point given a positive reading
+    positiveEntropy =  entropy(createTheoreticalBeliefGrid(1, point).ravel())
+
+    # Compute the entropy of the belief grid at the point given a negative reading
+    negativeEntropy = entropy(createTheoreticalBeliefGrid(0, point).ravel())
+
+    # Get the weighted sum of the two entropies
+    weightedPosEntropy = currentEntropy - jnp.multiply(beliefGrid, positiveEntropy)
+    weightedNegEntropy = currentEntropy - jnp.multiply(beliefGrid, negativeEntropy)
+
+    # Get the sum of the two weighted entropies
+    sumWeightedEntropy = jnp.sum(weightedPosEntropy) + jnp.sum(weightedNegEntropy)
+
+    return sumWeightedEntropy
 
 ######### Problem functions #########
 def prob1():
@@ -260,9 +350,6 @@ def prob1():
     fig, ax = plt.subplots(2, 5)
     fig.set_label("Problem 1")
     fig.canvas.manager.set_window_title("Homework 2")
-
-    # Parameters
-    numPoints = 100
 
     # Create the chances grid
     createRandomSourceLocation()
@@ -275,8 +362,12 @@ def prob1():
     curPoint = 0
     for i in range(0, 2):
         for j in range(0, 5):
-            # Infotaxis algorithm
-            infoTaxisAlgorithm()
+            # # Do the infotaxis algorithm x times
+            x = 10
+            for k in range(0, x):
+                # Infotaxis algorithm
+                infoTaxisAlgorithm()
+                curPoint += 1
 
             # Getting the current ax coods
             curAx = np.array([i, j])
