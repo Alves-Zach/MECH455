@@ -1,31 +1,32 @@
 import math
-from shutil import SameFileError
-from matplotlib.lines import lineStyles
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import numpy as np
 import jax.numpy as jnp
 from pathlib import Path
 
-# Global variables
-# Image file
-imagePath = Path(__file__).resolve().parent / 'lincoln.jpg'
-image = jnp.subtract(255, mpimg.imread(imagePath))
+def prob1Setup():
+    # Global variables
+    global image, xcoords, ycoords, dx, dy, samplePoints, readings, sampleWeights
 
-# Getting x and y coordinates
-xcoords = np.linspace(0.0, 1.0, image.shape[0])
-ycoords = np.linspace(0.0, 1.0, image.shape[1])
+    # Image file
+    imagePath = Path(__file__).resolve().parent / 'lincoln.jpg'
+    image = jnp.subtract(255, mpimg.imread(imagePath))
 
-dx = xcoords[1] - xcoords[0]
-dy = ycoords[1] - ycoords[0]
+    # Getting x and y coordinates
+    xcoords = np.linspace(0.0, 1.0, image.shape[0])
+    ycoords = np.linspace(0.0, 1.0, image.shape[1])
 
-# Normalizing the image grid
-image = jnp.divide(image, jnp.sum(image) * dx * dy)
+    dx = xcoords[1] - xcoords[0]
+    dy = ycoords[1] - ycoords[0]
 
-# List of points sampled and their corresponding readings
-samplePoints = np.empty((0, 2))
-readings = np.empty((0, 1))
-sampleWeights = np.empty((0, 2))
+    # Normalizing the image grid
+    image = jnp.divide(image, jnp.sum(image) * dx * dy)
+
+    # List of points sampled and their corresponding readings
+    samplePoints = np.empty((0, 2))
+    readings = np.empty((0, 1))
+    sampleWeights = np.empty((0, 2))
 
 ###### Helper functions ######
 # Get the chances of a positive reading at the given point
@@ -82,7 +83,10 @@ def getDensity(point):
     return image[pixel[0], pixel[1]]
 
 # Main function
-def main():
+def prob1():
+    # Setup
+    prob1Setup()
+
     # Getting global variables
     global samplePoints, readings
 
@@ -113,6 +117,118 @@ def main():
     fig.set_label('Image and Samples')
     fig.canvas.manager.set_window_title('Image and Samples')
     plt.show()
+
+###### Problem 2 global variables ######
+
+# Time and timestep
+tf = 6.3
+dt = 0.1
+
+# The state at time = 0
+groundTruth = np.array([0.0, 0.0, np.pi/2])
+measuredState = np.array([0.0, 0.0, np.pi/2])
+
+# List of particles and their weights
+xbar = np.zeros(4)
+
+# The constant control signal
+controlSignal = np.array([1.0, -0.5])
+
+# Sensor noise
+sensorNoise = 0.02
+
+# State of the robot from t = 0
+stateHistory = np.empty((0, 3))
+
+# List of particles
+particles = np.zeros((63, 3))
+particles[:, 0] = np.random.normal(0.0, 0.2, 63)
+particles[:, 1] = np.random.normal(0.0, 0.2, 63)
+particles[:, 2] = np.random.rand(63) * 2 * np.pi
+particles[:, 2] += np.pi / 2
+
+###### Problem 2 helper functions ######
+# Get the state based on an input
+def getStateUpdate(u1, u2):
+    # Get global variables
+    global groundTruth
+    
+    # Getting the change in state
+    dx = u1 * jnp.cos(groundTruth[2])
+    dy = u1 * jnp.sin(groundTruth[2])
+    dtheta = u2
+
+    return jnp.array([dx, dy, dtheta])
+
+# Update the particles based on the state
+def updateParticles():
+    # Get the particles array
+    global particles, dt, controlSignal
+
+    # Update the particles
+    particles[:, 0] += controlSignal[0] * jnp.cos(particles[:, 2]) * dt
+    particles[:, 1] += controlSignal[0] * jnp.sin(particles[:, 2]) * dt
+    particles[:, 2] += controlSignal[1] * dt
+
+# Get measurement based on command signal
+def getMeasurement(u1, u2):
+    # Get global variables
+    global groundTruth, sensorNoise, measuredState
+    
+    # Estimate the measurement based on the ground truth
+    measuredState = getStateUpdate(u1, u2) + np.random.normal(0, sensorNoise, 3)
+
+# Calculate the weights of the particles
+def calcWeights():
+    # Get global variables
+    global particles, measuredState, sensorNoise
+
+    # Calculate the weights based on the distances from the measured state
+    particleDistances = np.linalg.norm(particles[:, :2] - measuredState[:2], axis=1)
+
+# Update the state based on input
+# By default the time step is 0.1
+def updateState(u1, u2):
+    # Get global variables
+    global groundTruth, stateHistory
+
+    # Update the state
+    stateUpdate = getStateUpdate(u1/10, u2/10)
+    groundTruth[0] += stateUpdate[0]
+    groundTruth[1] += stateUpdate[1]
+    groundTruth[2] += stateUpdate[2]
+
+    # Store the state of the robot in the global variable
+    stateHistory = np.vstack((stateHistory, groundTruth))
+
+# Problem 2
+def prob2():
+    # Run the state update for 6 seconds
+    for _ in range(0, 63):
+        # Update ground truth
+        updateState(controlSignal[0], controlSignal[1])
+        
+        # Get a measurement of the state
+        getMeasurement(controlSignal[0], controlSignal[1])
+
+        # Calculate the weights of the particles
+        calcWeights()
+
+    # Plot the state of the robot
+    plt.plot(stateHistory[:, 0], stateHistory[:, 1], 'k', label='Robot State')
+
+    # Plot the particles
+    plt.plot(particles[:, 0], particles[:, 1], 'ro', label='Particles')
+
+    plt.xlim(-1, 5)
+    plt.ylim(-1, 3)
+    plt.axis('equal')
+    plt.legend()
+    plt.show()
+
+def main():
+    # prob1()
+    prob2()
 
 if __name__ == "__main__":
     main()
