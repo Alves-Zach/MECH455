@@ -1,4 +1,5 @@
 import math
+from matplotlib import markers
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import numpy as np
@@ -124,6 +125,9 @@ def prob1():
 tf = 6.3
 dt = 0.1
 
+# Number of particles
+numParticles = 100
+
 # The state at time = 0
 groundTruth = np.array([0.0, 0.0, np.pi/2])
 measuredState = np.array([0.0, 0.0, np.pi/2])
@@ -141,11 +145,14 @@ sensorNoise = 0.02
 stateHistory = np.empty((0, 3))
 
 # List of particles
-particles = np.zeros((63, 3))
-particles[:, 0] = np.random.normal(0.0, 0.2, 63)
-particles[:, 1] = np.random.normal(0.0, 0.2, 63)
-particles[:, 2] = np.random.rand(63) * 2 * np.pi
+particles = np.zeros((numParticles, 3))
+particles[:, 0] = np.random.normal(0.0, 0.2, numParticles)
+particles[:, 1] = np.random.normal(0.0, 0.2, numParticles)
+particles[:, 2] = np.random.rand(numParticles) * 2 * np.pi
 particles[:, 2] += np.pi / 2
+
+# Chosen particles
+chosenParticles = np.zeros((63, 3))
 
 ###### Problem 2 helper functions ######
 # Get the state based on an input
@@ -160,15 +167,16 @@ def getStateUpdate(u1, u2):
 
     return jnp.array([dx, dy, dtheta])
 
-# Update the particles based on the state
-def updateParticles():
-    # Get the particles array
-    global particles, dt, controlSignal
+# Generate new particles based on the current state
+def newParticles():
+    # Get global variables
+    global particles, numParticles
 
-    # Update the particles
-    particles[:, 0] += controlSignal[0] * jnp.cos(particles[:, 2]) * dt
-    particles[:, 1] += controlSignal[0] * jnp.sin(particles[:, 2]) * dt
-    particles[:, 2] += controlSignal[1] * dt
+    # Generate new particles
+    particles[:, 0] = np.random.normal(groundTruth[0], 0.1, numParticles)
+    particles[:, 1] = np.random.normal(groundTruth[1], 0.1, numParticles)
+    particles[:, 2] = np.random.normal(groundTruth[2], 0.1, numParticles)
+    particles[:, 2] += np.pi / 2 # To account for the starting angle
 
 # Get measurement based on command signal
 def getMeasurement(u1, u2):
@@ -181,10 +189,27 @@ def getMeasurement(u1, u2):
 # Calculate the weights of the particles
 def calcWeights():
     # Get global variables
-    global particles, measuredState, sensorNoise
+    global particles, measuredState, sensorNoise, weights
 
     # Calculate the weights based on the distances from the measured state
     particleDistances = np.linalg.norm(particles[:, :2] - measuredState[:2], axis=1)
+
+    # Calculate the particle probabilities
+    probabilities = np.exp(np.multiply(jnp.square(particleDistances), -0.5 * sensorNoise))
+    
+    # Calc weights
+    weights = probabilities / np.sum(probabilities)
+
+# Resample the particles based on weights
+def resampleParticles():
+    # Get global variables
+    global particles, weights, numParticles, chosenParticles
+
+    # Get the indices of the particles
+    indices = np.random.choice(range(numParticles), size=numParticles, p=weights)
+
+    # Resample the particles
+    chosenParticles = particles[indices]
 
 # Update the state based on input
 # By default the time step is 0.1
@@ -203,8 +228,17 @@ def updateState(u1, u2):
 
 # Problem 2
 def prob2():
+    # Getting global variables
+    global chosenParticles, controlSignal
+    
+    # List for particle colors
+    colors = ['r', 'y', 'g', 'b', 'c', 'm', 'k', 'w']
+    curColor = 0
+
     # Run the state update for 6 seconds
-    for _ in range(0, 63):
+    for i in range(0, 63):
+        # Genrate new particles based on the current state
+        newParticles()
         # Update ground truth
         updateState(controlSignal[0], controlSignal[1])
         
@@ -214,11 +248,25 @@ def prob2():
         # Calculate the weights of the particles
         calcWeights()
 
-    # Plot the state of the robot
-    plt.plot(stateHistory[:, 0], stateHistory[:, 1], 'k', label='Robot State')
+        # Resample the particles
+        resampleParticles()
 
-    # Plot the particles
-    plt.plot(particles[:, 0], particles[:, 1], 'ro', label='Particles')
+        # Plot the particles at specific intervals
+        if i % 3 == 0:
+            plt.scatter(particles[:, 0], particles[:, 1], color=colors[curColor],
+                        edgecolors='k')
+        if i % 9 == 0:
+            curColor += 1
+
+    # Plot the particles at the last position
+    plt.scatter(particles[:, 0], particles[:, 1], color=colors[curColor],
+                edgecolors='k')
+    
+
+
+    # Plot the state of the robot
+    plt.plot(stateHistory[:, 0], stateHistory[:, 1], 'k',
+             label='Robot State', linewidth=4)
 
     plt.xlim(-1, 5)
     plt.ylim(-1, 3)
