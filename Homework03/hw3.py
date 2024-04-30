@@ -139,10 +139,11 @@ xbar = np.zeros(4)
 controlSignal = np.array([1.0, -0.5])
 
 # Sensor noise
-sensorNoise = 0.02
+sensorNoise = 0.002
 
 # State of the robot from t = 0
 stateHistory = np.empty((0, 3))
+measuredStateHistory = np.empty((0, 3))
 
 # List of particles
 particles = np.zeros((numParticles, 3))
@@ -156,7 +157,7 @@ chosenParticles = np.zeros((63, 3))
 
 ###### Problem 2 helper functions ######
 # Get the state based on an input
-def getStateUpdate(u1, u2):
+def getStateUpdate(u1, u2, noise=True):
     # Get global variables
     global groundTruth
     
@@ -164,6 +165,12 @@ def getStateUpdate(u1, u2):
     dx = u1 * jnp.cos(groundTruth[2])
     dy = u1 * jnp.sin(groundTruth[2])
     dtheta = u2
+    
+    if noise:
+        # Adding noise to the state
+        dx += np.random.normal(0, 0.02)
+        dy += np.random.normal(0, 0.02)
+        dtheta += np.random.normal(0, 0.02)
 
     return jnp.array([dx, dy, dtheta])
 
@@ -180,13 +187,15 @@ def newParticles():
 
 # Get measurement based on command signal
 def getMeasurement(u1, u2):
-    # Get global variables
-    global groundTruth, sensorNoise, measuredState
-    
-    # Estimate the measurement based on the ground truth
-    measuredState = getStateUpdate(u1, u2) + np.random.normal(0, sensorNoise, 3)
+    # Average the weighted particles to get the measured state
+    global particles, measuredState, measuredStateHistory
 
-# Calculate the weights of the particles
+    # Get the measured state
+    measuredState = np.average(particles, axis=0, weights=weights)
+
+    # Store the measured state
+    measuredStateHistory = np.vstack((measuredStateHistory, measuredState))
+    
 def calcWeights():
     # Get global variables
     global particles, measuredState, sensorNoise, weights
@@ -241,32 +250,33 @@ def prob2():
         newParticles()
         # Update ground truth
         updateState(controlSignal[0], controlSignal[1])
-        
-        # Get a measurement of the state
-        getMeasurement(controlSignal[0], controlSignal[1])
 
         # Calculate the weights of the particles
         calcWeights()
 
         # Resample the particles
         resampleParticles()
+        
+        # Get a measurement of the state
+        getMeasurement(controlSignal[0], controlSignal[1])
 
         # Plot the particles at specific intervals
-        if i % 3 == 0:
+        if i % 9 == 0:
             plt.scatter(particles[:, 0], particles[:, 1], color=colors[curColor],
                         edgecolors='k')
-        if i % 9 == 0:
             curColor += 1
 
     # Plot the particles at the last position
     plt.scatter(particles[:, 0], particles[:, 1], color=colors[curColor],
                 edgecolors='k')
-    
-
 
     # Plot the state of the robot
     plt.plot(stateHistory[:, 0], stateHistory[:, 1], 'k',
-             label='Robot State', linewidth=4)
+             label='Ground Truth', linewidth=2)
+
+    # Plot the measured state
+    plt.plot(measuredStateHistory[:, 0], measuredStateHistory[:, 1], 'r',
+             label='Measured State', linewidth=2)
 
     plt.xlim(-1, 5)
     plt.ylim(-1, 3)
