@@ -20,10 +20,10 @@ def f(x):
 def armijo(x, z):
     # Parameters
     global alpha, beta
-    
+
     # Initial step size
     stepSize = 1
-    
+
     # The loop to check if the Armijo condition is satisfied
     while f(x + stepSize * z) > f(x) + alpha * stepSize * np.dot(-np.transpose(z), z):
         stepSize *= beta
@@ -34,7 +34,7 @@ def armijo(x, z):
 # The main function
 def main():
     global N, x
-    
+
     # Storing the guesses to be plotted later
     xinit = x
 
@@ -45,7 +45,7 @@ def main():
 
         # Update the current guess
         x = armijo(x, z)
-        
+
         # Store the current guess to be plotted later
         xinit = np.vstack((xinit, x))
 
