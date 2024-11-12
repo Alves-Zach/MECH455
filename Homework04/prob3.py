@@ -26,14 +26,14 @@ def step(xIn, uIn):
     return xNew
 
 # Creates a trajectory based on a constant control input
-def createInitTraj(startingPoint, u_traj):
-    tsteps = u_traj.shape[0]
+def simTraj(x0, uTraj):
+    tsteps = uTraj.shape[0]
     xTraj = np.zeros((tsteps, 3))
-    xt = startingPoint.copy()
+    xt = x0.copy()
     for t in range(tsteps):
-        xt_new = step(xt, u_traj[t])
-        xTraj[t] = xt_new.copy()
-        xt = xt_new.copy()
+        xtNew = step(xt, uTraj[t])
+        xTraj[t] = xtNew.copy()
+        xt = xtNew.copy()
     return xTraj
 
 ################## Starting the iLQR algorithm
@@ -102,7 +102,7 @@ def ilqr_iter(x0, u_traj):
     # :param u_traj: current estimation of the optimal control trajectory
     # :return: the descent direction for the control
     # forward simulate the state trajectory
-    xTraj = createInitTraj(x0, u_traj)
+    xTraj = simTraj(x0, u_traj)
 
     # compute other variables needed for specifying the dynamics of z(t) and p(t)
     A_list = np.zeros((N, 3, 3))
@@ -189,7 +189,7 @@ def ilqr_iter(x0, u_traj):
 
 # Starting conditions for the iLQR algorithm
 uTraj = init_u_traj.copy()
-initXTraj = createInitTraj(x0, uTraj)
+initXTraj = simTraj(x0, uTraj)
 
 # Array to store the objective value
 objVal = []
@@ -197,7 +197,7 @@ objVal = []
 # The loop to iterate through the iLQR algorithm
 for iter in range(10):
     # Simulate with the current command
-    xTraj = createInitTraj(x0, init_u_traj)
+    xTraj = simTraj(x0, init_u_traj)
 
     decent = ilqr_iter(x0, uTraj)
 
@@ -210,7 +210,7 @@ for iter in range(10):
 
     while True:
         uTrajNew = uTraj + gamma * decent
-        xTrajNew = createInitTraj(x0, uTrajNew)
+        xTrajNew = simTraj(x0, uTrajNew)
 
         cost_new = loss(0, xTrajNew, uTrajNew)
         expected_reduction = alpha * gamma * np.sum(decent * decent)
